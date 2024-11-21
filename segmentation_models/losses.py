@@ -237,6 +237,65 @@ class BinaryFocalLoss(Loss):
     def __call__(self, gt, pr):
         return F.binary_focal_loss(gt, pr, alpha=self.alpha, gamma=self.gamma, **self.submodules)
 
+class WeightedTverskyLoss(Loss):
+    r"""Creates a criterion to measure weighted Tversy loss, based on weighted dice loss:
+
+    The formula in terms of *Type I* and *Type II* errors:
+
+    .. math:: L(tp, fp, fn) = \frac{(1 + \beta^2) \cdot tp} {(1 + \beta^2) \cdot tp + \beta^2 \cdot \eta \cdot fn + \psi \cdot fp}
+
+    where:
+         - tp - true positives;
+         - fp - false positives;
+         - fn - false negatives;
+
+    Args:
+        beta: Float or integer coefficient for precision and recall balance.
+	eta: fn weight to adjust class imbalance
+	psi: fp weight to adjust class imbalance
+        class_weights: Array (``np.array``) of class weights (``len(weights) = num_classes``).
+        class_indexes: Optional integer or list of integers, classes to consider, if ``None`` all classes are used.
+        per_image: If ``True`` loss is calculated for each image in batch and then averaged,
+        else loss is calculated for the whole batch.
+        smooth: Value to avoid division by zero.
+
+    Returns:
+        A callable ``weighted_tversy_loss`` instance. Can be used in ``model.compile(...)`` function`
+        or combined with other losses.
+
+    Example:
+
+    .. code:: python
+
+        loss = WeightedTverskyLoss()
+        model.compile('SGD', loss=loss)
+    """
+
+    def __init__(self, beta=1, eta=1, psi=1, class_weights=None, class_indexes=None, per_image=False, smooth=SMOOTH):
+        super().__init__(name='weighted_tversky_loss')
+        self.beta = beta
+        self.eta = eta
+        self.psi = psi
+        self.class_weights = class_weights if class_weights is not None else 1
+        self.class_indexes = class_indexes
+        self.per_image = per_image
+        self.smooth = smooth
+
+    def __call__(self, gt, pr):
+        return 1 - F.weighted_f_score(
+            gt,
+            pr,
+            beta=self.beta,
+            eta=self.eta,
+            psi=self.psi,
+            class_weights=self.class_weights,
+            class_indexes=self.class_indexes,
+            smooth=self.smooth,
+            per_image=self.per_image,
+            threshold=None,
+            **self.submodules
+        )
+
 
 # aliases
 jaccard_loss = JaccardLoss()
@@ -247,6 +306,8 @@ categorical_focal_loss = CategoricalFocalLoss()
 
 binary_crossentropy = BinaryCELoss()
 categorical_crossentropy = CategoricalCELoss()
+
+weighted_tversky_loss = WeightedTverskyLoss()
 
 # loss combinations
 bce_dice_loss = binary_crossentropy + dice_loss
