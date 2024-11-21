@@ -229,6 +229,32 @@ def recall(gt, pr, class_weights=1, class_indexes=None, smooth=SMOOTH, per_image
 
     return score
 
+def weighted_f_score(gt, pr, beta=1, eta=1, psi=1, class_weights=1, class_indexes=None, smooth=SMOOTH, per_image=False, threshold=None,
+            **kwargs):
+    r"""
+    The formula for the weighted F score in terms of *Type I* and *Type II* errors:
+
+    .. math:: F_\beta(A, B) = \frac{(1 + \beta^2) TP} {(1 + \beta^2) TP + \beta^2 \eta FN + \psi FP}
+
+    """
+
+    backend = kwargs['backend']
+
+    gt, pr = gather_channels(gt, pr, indexes=class_indexes, **kwargs)
+    pr = round_if_needed(pr, threshold, **kwargs)
+    axes = get_reduce_axes(per_image, **kwargs)
+
+    # calculate score
+    tp = backend.sum(gt * pr, axis=axes)
+    fp = backend.sum(pr, axis=axes) - tp
+    fn = backend.sum(gt, axis=axes) - tp
+
+    score = ((1 + beta ** 2) * tp + smooth) \
+            / ((1 + beta ** 2) * tp + beta ** 2 * eta * fn + psi * fp + smooth)
+    score = average(score, per_image, class_weights, **kwargs)
+
+    return score
+
 
 # ----------------------------------------------------------------
 #   Loss Functions
